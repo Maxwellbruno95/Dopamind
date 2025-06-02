@@ -1,14 +1,66 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { Bell, Shield, CreditCard, CircleHelp as HelpCircle, LogOut, ChevronRight, Moon, Volume2 } from 'lucide-react-native';
+import { useAuth } from '@/context/AuthContext';
 
 export default function SettingsScreen() {
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
   const isDark = theme === 'dark';
+  
+  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const [soundEnabled, setSoundEnabled] = React.useState(true);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setNotificationsEnabled(data.notifications_enabled);
+        setSoundEnabled(data.sound_enabled);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const updateSetting = async (setting: string, value: boolean) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('settings')
+        .upsert({
+          user_id: user?.id,
+          [setting]: value,
+        });
+
+      if (error) throw error;
+
+      if (setting === 'notifications_enabled') {
+        setNotificationsEnabled(value);
+      } else if (setting === 'sound_enabled') {
+        setSoundEnabled(value);
+      }
+    } catch (error) {
+      console.error('Error updating setting:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -22,17 +74,23 @@ export default function SettingsScreen() {
         {
           icon: Bell,
           label: 'Notifications',
-          value: 'On',
+          type: 'switch',
+          value: notificationsEnabled,
+          onChange: (value: boolean) => updateSetting('notifications_enabled', value),
         },
         {
           icon: Moon,
           label: 'Dark Mode',
-          value: isDark ? 'On' : 'Off',
+          type: 'switch',
+          value: isDark,
+          onChange: toggleTheme,
         },
         {
           icon: Volume2,
           label: 'Sound Effects',
-          value: 'On',
+          type: 'switch',
+          value: soundEnabled,
+          onChange: (value: boolean) => updateSetting('sound_enabled', value),
         },
       ],
     },
@@ -83,7 +141,8 @@ export default function SettingsScreen() {
                       itemIndex < group.items.length - 1 && styles.itemBorder,
                       { borderBottomColor: isDark ? '#334155' : '#E2E8F0' }
                     ]}
-                    onPress={item.onPress}
+                    onPress={item.type !== 'switch' ? item.onPress : undefined}
+                    disabled={loading}
                   >
                     <View style={styles.itemContent}>
                       <View style={[
@@ -98,12 +157,16 @@ export default function SettingsScreen() {
                     </View>
                     
                     <View style={styles.itemRight}>
-                      {item.value && (
-                        <Text style={[styles.itemValue, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                          {item.value}
-                        </Text>
+                      {item.type === 'switch' ? (
+                        <Switch
+                          value={item.value}
+                          onValueChange={item.onChange}
+                          trackColor={{ false: isDark ? '#334155' : '#E2E8F0', true: '#10B981' }}
+                          thumbColor={isDark ? '#FFFFFF' : '#FFFFFF'}
+                        />
+                      ) : (
+                        <ChevronRight size={20} color={isDark ? '#94A3B8' : '#64748B'} />
                       )}
-                      <ChevronRight size={20} color={isDark ? '#94A3B8' : '#64748B'} />
                     </View>
                   </TouchableOpacity>
                 );
@@ -174,11 +237,6 @@ const styles = StyleSheet.create({
   itemRight: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  itemValue: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    marginRight: 8,
   },
   logoutButton: {
     flexDirection: 'row',

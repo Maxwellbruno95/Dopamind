@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { useAppContext } from '@/context/AppContext';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -178,6 +179,7 @@ export default function ProfileScreen() {
             styles.settingsButton,
             { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }
           ]}
+          onPress={() => router.push('/settings')}
         >
           <Settings size={20} color={isDark ? '#FFFFFF' : '#0F172A'} />
           <Text style={[
