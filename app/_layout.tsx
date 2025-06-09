@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { SplashScreen } from 'expo-router';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { AuthProvider } from '@/context/AuthContext';
 import { AppProvider } from '@/context/AppContext';
 import { SubscriptionProvider } from '@/context/SubscriptionContext';
 
@@ -34,16 +35,20 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AppProvider>
-        <SubscriptionProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-            <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </SubscriptionProvider>
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <SubscriptionProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+              <Stack.Screen name="auth" options={{ headerShown: false }} />
+              <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style="auto" />
+          </SubscriptionProvider>
+        </AppProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
