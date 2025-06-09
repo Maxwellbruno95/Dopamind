@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Play, Pause, X, Volume2, Volume, Minus, Plus } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
@@ -57,6 +57,15 @@ export default function FocusScreen() {
       setIsActive(false);
       setIsComplete(true);
       addCompletedSession();
+      
+      // Platform-specific feedback for mobile
+      if (Platform.OS !== 'web') {
+        // Mobile haptic feedback would go here
+        console.log('Session completed - haptic feedback');
+      } else {
+        // Web alternative - could be a notification or visual effect
+        console.log('Session completed - web notification');
+      }
     }
     
     return () => clearInterval(interval);
