@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
-import { supabase } from '@/lib/supabase';
+import { supabase, isDemoModeActive } from '@/lib/supabase';
 import { Mail, Lock, ArrowRight } from 'lucide-react-native';
 
 export default function LoginScreen() {
@@ -16,6 +16,12 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   
   const handleLogin = async () => {
+    if (isDemoModeActive) {
+      // In demo mode, just navigate to the app
+      router.replace('/(tabs)');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -28,11 +34,15 @@ export default function LoginScreen() {
       if (error) throw error;
       
       router.replace('/(tabs)');
-    } catch (error) {
+    } catch (error: any) {
       setError(error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    router.replace('/(tabs)');
   };
   
   return (
@@ -45,6 +55,11 @@ export default function LoginScreen() {
           <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
             Sign in to continue your mindfulness journey
           </Text>
+          {isDemoModeActive && (
+            <Text style={[styles.demoNotice, { color: '#F59E0B' }]}>
+              🎭 Demo Mode - Supabase not configured
+            </Text>
+          )}
         </View>
         
         <View style={styles.form}>
@@ -59,6 +74,7 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                editable={!isDemoModeActive}
               />
             </View>
           </View>
@@ -73,6 +89,7 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                editable={!isDemoModeActive}
               />
             </View>
           </View>
@@ -86,22 +103,34 @@ export default function LoginScreen() {
               styles.button,
               { opacity: loading ? 0.7 : 1 }
             ]}
-            onPress={handleLogin}
+            onPress={isDemoModeActive ? handleDemoLogin : handleLogin}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>Sign In</Text>
+            <Text style={styles.buttonText}>
+              {isDemoModeActive ? 'Continue Demo' : 'Sign In'}
+            </Text>
             <ArrowRight size={20} color="#FFFFFF" />
           </TouchableOpacity>
+
+          {isDemoModeActive && (
+            <View style={styles.demoInfo}>
+              <Text style={[styles.demoInfoText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                Demo mode is active. To use real authentication, configure your Supabase environment variables.
+              </Text>
+            </View>
+          )}
         </View>
         
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-            Don't have an account?
-          </Text>
-          <Link href="/auth/register" style={styles.link}>
-            <Text style={styles.linkText}>Sign Up</Text>
-          </Link>
-        </View>
+        {!isDemoModeActive && (
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+              Don't have an account?
+            </Text>
+            <Link href="/auth/register" style={styles.link}>
+              <Text style={styles.linkText}>Sign Up</Text>
+            </Link>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -127,6 +156,12 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     fontFamily: 'Inter-Regular',
+  },
+  demoNotice: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginTop: 8,
+    textAlign: 'center',
   },
   form: {
     marginBottom: 24,
@@ -170,6 +205,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-Bold',
     marginRight: 8,
+  },
+  demoInfo: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 8,
+  },
+  demoInfoText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+    lineHeight: 16,
   },
   footer: {
     flexDirection: 'row',

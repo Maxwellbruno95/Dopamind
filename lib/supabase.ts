@@ -2,11 +2,15 @@ import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-url-polyfill/auto';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+// Use demo/development values if environment variables are not set
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://demo.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'demo-key';
 
-if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-  console.warn('Supabase environment variables not configured. Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file.');
+// For development/demo purposes, we'll create a mock client if no real credentials
+const isDemoMode = !process.env.EXPO_PUBLIC_SUPABASE_URL || supabaseUrl === 'https://demo.supabase.co';
+
+if (isDemoMode) {
+  console.warn('🚧 Running in demo mode - Supabase features will be mocked');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -17,3 +21,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// Mock user for demo mode
+export const DEMO_USER = {
+  id: 'demo-user-123',
+  email: 'demo@dopamind.app',
+  user_metadata: {
+    full_name: 'Demo User'
+  }
+};
+
+export const isDemoModeActive = isDemoMode;

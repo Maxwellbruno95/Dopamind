@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isDemoModeActive } from '@/lib/supabase';
 import { SubscriptionTier, SUBSCRIPTION_FEATURES } from '@/types/subscription';
 
 type SubscriptionContextType = {
@@ -44,35 +44,53 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     try {
       setIsLoading(true);
       
+      if (isDemoModeActive) {
+        // Demo mode - simulate a pro subscription
+        if (mounted.current) {
+          setTier('pro');
+          setDailySessions(2); // Simulate some usage
+        }
+        return;
+      }
+
       // Get user's subscription from Supabase
-      const { data: subscription, error } = await supabase
-        .from('subscriptions')
-        .select('tier')
-        .maybeSingle();
+      try {
+        const { data: subscription, error } = await supabase
+          .from('subscriptions')
+          .select('tier')
+          .maybeSingle();
 
-      if (error) {
-        console.error('Error loading subscription:', error);
-        return;
-      }
+        if (error) {
+          console.error('Error loading subscription:', error);
+          return;
+        }
 
-      if (mounted.current) {
-        setTier(subscription?.tier || 'free');
-      }
+        if (mounted.current) {
+          setTier(subscription?.tier || 'free');
+        }
 
-      // Get today's session count
-      const today = new Date().toISOString().split('T')[0];
-      const { data: sessions, error: sessionsError } = await supabase
-        .from('focus_sessions')
-        .select('id')
-        .gte('completed_at', today);
+        // Get today's session count
+        const today = new Date().toISOString().split('T')[0];
+        const { data: sessions, error: sessionsError } = await supabase
+          .from('focus_sessions')
+          .select('id')
+          .gte('completed_at', today);
 
-      if (sessionsError) {
-        console.error('Error loading sessions:', sessionsError);
-        return;
-      }
+        if (sessionsError) {
+          console.error('Error loading sessions:', sessionsError);
+          return;
+        }
 
-      if (mounted.current) {
-        setDailySessions(sessions?.length || 0);
+        if (mounted.current) {
+          setDailySessions(sessions?.length || 0);
+        }
+      } catch (error) {
+        console.error('Supabase connection error:', error);
+        // Fallback to demo values
+        if (mounted.current) {
+          setTier('free');
+          setDailySessions(1);
+        }
       }
     } catch (error) {
       console.error('Failed to load subscription:', error);
@@ -98,6 +116,14 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     if (!mounted.current) return;
     
     try {
+      if (isDemoModeActive) {
+        // In demo mode, just update locally
+        if (mounted.current) {
+          setTier(newTier);
+        }
+        return;
+      }
+
       const { error } = await supabase
         .from('subscriptions')
         .upsert({ tier: newTier });

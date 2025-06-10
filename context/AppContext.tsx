@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/lib/supabase';
+import { supabase, isDemoModeActive } from '@/lib/supabase';
 
 type MoodEntry = {
   id?: string;
@@ -40,6 +40,15 @@ type AppProviderProps = {
   children: React.ReactNode;
 };
 
+// Demo data for when Supabase is not configured
+const DEMO_MOOD_ENTRIES: MoodEntry[] = [
+  { id: '1', mood: 4, timestamp: new Date(Date.now() - 86400000).toISOString(), note: 'Feeling good after morning meditation' },
+  { id: '2', mood: 3, timestamp: new Date(Date.now() - 172800000).toISOString(), note: 'Neutral day' },
+  { id: '3', mood: 5, timestamp: new Date(Date.now() - 259200000).toISOString(), note: 'Excellent focus session!' },
+  { id: '4', mood: 2, timestamp: new Date(Date.now() - 345600000).toISOString(), note: 'Stressed day' },
+  { id: '5', mood: 4, timestamp: new Date(Date.now() - 432000000).toISOString(), note: 'Better after focus time' },
+];
+
 export function AppProvider({ children }: AppProviderProps) {
   const [streak, setStreak] = useState(0);
   const [lastSessionDate, setLastSessionDate] = useState<string | null>(null);
@@ -73,22 +82,37 @@ export function AppProvider({ children }: AppProviderProps) {
         ]);
 
       if (mounted.current) {
-        if (savedStreak) setStreak(parseInt(savedStreak));
-        if (savedLastSessionDate) setLastSessionDate(savedLastSessionDate);
-        if (savedCompletedSessions) setCompletedSessions(parseInt(savedCompletedSessions));
-        if (savedCurrentMood) setCurrentMood(parseInt(savedCurrentMood));
+        setStreak(savedStreak ? parseInt(savedStreak) : (isDemoModeActive ? 7 : 0));
+        setLastSessionDate(savedLastSessionDate || (isDemoModeActive ? new Date().toISOString().split('T')[0] : null));
+        setCompletedSessions(savedCompletedSessions ? parseInt(savedCompletedSessions) : (isDemoModeActive ? 15 : 0));
+        setCurrentMood(savedCurrentMood ? parseInt(savedCurrentMood) : (isDemoModeActive ? 4 : null));
       }
 
-      // Load mood entries from Supabase
-      const { data: moodData, error } = await supabase
-        .from('mood_entries')
-        .select('*')
-        .order('timestamp', { ascending: false });
+      if (isDemoModeActive) {
+        // Use demo data
+        if (mounted.current) {
+          setMoodEntries(DEMO_MOOD_ENTRIES);
+        }
+      } else {
+        // Load mood entries from Supabase
+        try {
+          const { data: moodData, error } = await supabase
+            .from('mood_entries')
+            .select('*')
+            .order('timestamp', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching mood entries:', error);
-      } else if (mounted.current) {
-        setMoodEntries(moodData || []);
+          if (error) {
+            console.error('Error fetching mood entries:', error);
+          } else if (mounted.current) {
+            setMoodEntries(moodData || []);
+          }
+        } catch (error) {
+          console.error('Supabase connection error:', error);
+          // Fallback to demo data
+          if (mounted.current) {
+            setMoodEntries(DEMO_MOOD_ENTRIES);
+          }
+        }
       }
 
       // Check streak
@@ -99,7 +123,7 @@ export function AppProvider({ children }: AppProviderProps) {
           (today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
         );
         
-        if (diffInDays > 1) {
+        if (diffInDays > 1 && !isDemoModeActive) {
           setStreak(0);
           await AsyncStorage.setItem('streak', '0');
         }
@@ -152,22 +176,25 @@ export function AppProvider({ children }: AppProviderProps) {
         await AsyncStorage.setItem('lastSessionDate', today);
       }
 
-      // Get the current user's ID
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      if (!isDemoModeActive) {
+        // Save session to Supabase
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { error } = await supabase
+              .from('focus_sessions')
+              .insert([{ 
+                completed_at: new Date().toISOString(),
+                user_id: user.id 
+              }]);
 
-      // Save session to Supabase
-      const { error } = await supabase
-        .from('focus_sessions')
-        .insert([{ 
-          completed_at: new Date().toISOString(),
-          user_id: user.id 
-        }]);
-
-      if (error) {
-        console.error('Error saving focus session:', error);
+            if (error) {
+              console.error('Error saving focus session:', error);
+            }
+          }
+        } catch (error) {
+          console.error('Supabase error saving session:', error);
+        }
       }
     } catch (error) {
       console.error('Failed to update session data:', error);
@@ -178,31 +205,42 @@ export function AppProvider({ children }: AppProviderProps) {
     if (!mounted.current) return;
     
     try {
-      // Get the current user's ID
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
-      // Add the user_id to the entry
-      const entryWithUserId = {
+      const newEntry = {
         ...entry,
-        user_id: user.id
+        id: entry.id || Date.now().toString(),
+        timestamp: entry.timestamp || new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
-        .from('mood_entries')
-        .insert([entryWithUserId])
-        .select()
-        .single();
+      if (!isDemoModeActive) {
+        // Save to Supabase
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const entryWithUserId = {
+              ...newEntry,
+              user_id: user.id
+            };
 
-      if (error) {
-        console.error('Error adding mood entry:', error);
-        return;
+            const { data, error } = await supabase
+              .from('mood_entries')
+              .insert([entryWithUserId])
+              .select()
+              .single();
+
+            if (error) {
+              console.error('Error adding mood entry:', error);
+              // Still add locally even if Supabase fails
+            } else {
+              newEntry.id = data.id;
+            }
+          }
+        } catch (error) {
+          console.error('Supabase error adding mood entry:', error);
+        }
       }
 
       if (mounted.current) {
-        const updatedEntries = [data, ...moodEntries];
+        const updatedEntries = [newEntry, ...moodEntries];
         setMoodEntries(updatedEntries);
       }
     } catch (error) {
@@ -229,22 +267,25 @@ export function AppProvider({ children }: AppProviderProps) {
         setMoodEntries([]);
       }
 
-      // Get the current user's ID
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
+      if (!isDemoModeActive) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // Clear Supabase data for the current user only
+            await supabase
+              .from('mood_entries')
+              .delete()
+              .eq('user_id', user.id);
+            
+            await supabase
+              .from('focus_sessions')
+              .delete()
+              .eq('user_id', user.id);
+          }
+        } catch (error) {
+          console.error('Supabase error resetting data:', error);
+        }
       }
-
-      // Clear Supabase data for the current user only
-      await supabase
-        .from('mood_entries')
-        .delete()
-        .eq('user_id', user.id);
-      
-      await supabase
-        .from('focus_sessions')
-        .delete()
-        .eq('user_id', user.id);
     } catch (error) {
       console.error('Failed to reset app data:', error);
     }
